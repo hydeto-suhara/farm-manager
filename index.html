@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌾 農作業日誌</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ===== ヘッダー ===== -->
+  <header>
+    <h1>🌾 農作業日誌</h1>
+    <div class="header-actions">
+      <button onclick="exportJSON()" class="btn btn-sm">💾 バックアップ</button>
+      <button onclick="document.getElementById('importFile').click()" class="btn btn-sm">📂 復元</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+      <button onclick="openSettings()" class="btn btn-sm">⚙️ 設定</button>
+    </div>
+  </header>
+
+  <!-- ===== タブナビ ===== -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="showTab('dashboard')">🏠 ダッシュボード</button>
+    <button class="tab-btn" onclick="showTab('gantt')">📅 ガント</button>
+    <button class="tab-btn" onclick="showTab('ai')">🤖 AI相談</button>
+    <button class="tab-btn" onclick="showTab('worklog')">📝 作業記録</button>
+    <button class="tab-btn" onclick="showTab('crops')">🌱 作物管理</button>
+    <button class="tab-btn" onclick="showTab('harvest')">📦 収穫記録</button>
+    <button class="tab-btn" onclick="showTab('stats')">📊 統計</button>
+  </nav>
+
+  <!-- ===== メインコンテンツ ===== -->
+  <main>
+
+    <!-- ① ダッシュボード -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">📅 今日: <span id="today-display"></span></h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button onclick="openWorkLogModal()" class="btn btn-primary btn-sm">＋ 作業記録</button>
+          <button onclick="openHarvestModal()" class="btn btn-sm" style="background:#ff9800;color:white;border-color:#ff9800;">＋ 収穫記録</button>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="card">
+          <h2>📅 今月のやること</h2>
+          <div id="monthly-tasks"><p class="empty-state">読み込み中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🗒️ 最近の作業</h2>
+          <div id="recent-logs"><p class="empty-state">読み込み中...</p></div>
+          <div style="text-align:right;margin-top:8px;">
+            <button onclick="showTab('worklog')" class="btn btn-sm">すべて見る →</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>🌱 育てている作物</h2>
+          <div id="active-crops"><p class="empty-state">読み込み中...</p></div>
+          <div style="text-align:right;margin-top:8px;">
+            <button onclick="showTab('crops')" class="btn btn-sm">管理する →</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>📦 最近の収穫</h2>
+          <div id="recent-harvests"><p class="empty-state">読み込み中...</p></div>
+          <div style="text-align:right;margin-top:8px;">
+            <button onclick="showTab('harvest')" class="btn btn-sm">すべて見る →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ② ガントチャート -->
+    <section id="tab-gantt" class="tab-content">
+      <div class="section-header">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">📅 ガントチャート（推奨スケジュール）</h2>
+        <button onclick="showTab('crops')" class="btn btn-sm">＋ 作物登録</button>
+      </div>
+      <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        📖 各季節の作業スケジュールを一覧で確認できます。アイコンにマウスを乗せると詳細が表示されます。
+      </p>
+      <div id="gantt-container">
+        <p class="empty-state" style="padding:40px;">読み込み中...</p>
+      </div>
+    </section>
+
+    <!-- ③ AI相談 -->
+    <section id="tab-ai" class="tab-content">
+      <div class="section-header" style="margin-bottom:8px;">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">🤖 AI農業アシスタント</h2>
+        <button onclick="clearAiChat()" class="btn btn-sm">🗑️ 会話をクリア</button>
+      </div>
+      <p style="font-size:0.82rem;color:#666;margin-bottom:12px;">
+        💡 <a href="#" onclick="openSettings();return false;" style="color:#40916c;">設定</a>でClaude API Keyを入力すると使用できます。
+        写真を送ると植物の状態を診断できます。
+      </p>
+      <div class="ai-container">
+        <div class="ai-chat" id="ai-messages"></div>
+        <div class="ai-input-area">
+          <div class="photo-upload-area">
+            <label for="ai-photo">📷 写真を追加</label>
+            <input type="file" id="ai-photo" accept="image/*" onchange="handlePhotoUpload(event)" style="display:none;">
+            <div id="photo-preview"></div>
+          </div>
+          <div class="ai-input-row">
+            <textarea id="ai-input" placeholder="農作業について質問してください... (Ctrl+Enter で送信)" rows="3"></textarea>
+            <button onclick="sendAIMessage()" class="btn btn-primary" style="align-self:flex-end;padding:12px 20px;">
+              送信
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ 作業記録 -->
+    <section id="tab-worklog" class="tab-content">
+      <div class="section-header">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">📝 作業記録</h2>
+        <button onclick="openWorkLogModal()" class="btn btn-primary">＋ 記録追加</button>
+      </div>
+      <div id="worklog-list">
+        <div class="card"><p class="empty-state">作業記録がありません。「＋ 記録追加」から記録しましょう！</p></div>
+      </div>
+    </section>
+
+    <!-- ⑤ 作物管理 -->
+    <section id="tab-crops" class="tab-content">
+      <div class="section-header">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">🌱 作物管理</h2>
+        <button onclick="openCropModal()" class="btn btn-primary">＋ 作物追加</button>
+      </div>
+
+      <!-- 圃場管理 -->
+      <div class="subsection">
+        <h3>📍 圃場管理</h3>
+        <button onclick="openFieldModal()" class="btn btn-sm" style="margin-bottom:10px;">＋ 圃場追加</button>
+        <div id="field-list"><p class="empty-state">圃場が登録されていません</p></div>
+      </div>
+
+      <!-- 作物一覧 -->
+      <div id="crop-list">
+        <p class="empty-state" style="padding:20px;text-align:center;background:white;border-radius:12px;">
+          作物がまだ登録されていません。<br>「＋ 作物追加」から追加してください。
+        </p>
+      </div>
+    </section>
+
+    <!-- ⑥ 収穫記録 -->
+    <section id="tab-harvest" class="tab-content">
+      <div class="section-header">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">📦 収穫記録</h2>
+        <button onclick="openHarvestModal()" class="btn btn-primary">＋ 収穫記録</button>
+      </div>
+      <div id="harvest-list">
+        <div class="card"><p class="empty-state">収穫記録がありません。収穫したら記録しましょう！</p></div>
+      </div>
+    </section>
+
+    <!-- ⑦ 統計・グラフ -->
+    <section id="tab-stats" class="tab-content">
+      <div class="section-header">
+        <h2 style="font-size:1.1rem;color:#2d6a4f;">📊 統計・グラフ</h2>
+        <button onclick="renderStats()" class="btn btn-sm">🔄 更新</button>
+      </div>
+      <div class="stats-grid">
+        <div class="card">
+          <h2>📊 年別収穫量</h2>
+          <canvas id="harvestByYearChart"></canvas>
+        </div>
+        <div class="card">
+          <h2>🌱 作物別収穫量</h2>
+          <canvas id="harvestByCropChart"></canvas>
+        </div>
+        <div class="card">
+          <h2>⏱️ 月別作業時間</h2>
+          <canvas id="workTimeChart"></canvas>
+        </div>
+        <div class="card full-width">
+          <h2>🏆 作物サマリー</h2>
+          <div id="crop-summary">
+            <p class="empty-state">作物と収穫を記録するとサマリーが表示されます</p>
+          </div>
+        </div>
+      </div>
+      <div class="export-section">
+        <h3 style="margin-bottom:12px;color:#2d6a4f;">📤 エクスポート</h3>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <button onclick="exportJSON()" class="btn">💾 JSONバックアップ</button>
+          <button onclick="exportObsidian()" class="btn btn-primary">📓 Obsidian Markdownエクスポート</button>
+        </div>
+        <p style="font-size:0.8rem;color:#666;margin-top:12px;">
+          📓 Obsidianエクスポートで年次レポートをMarkdownファイルとして保存できます
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== モーダル群 ===== -->
+
+  <!-- 設定モーダル -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <h2>⚙️ 設定</h2>
+      <label>Claude API Key
+        <input type="password" id="api-key-input" placeholder="sk-ant-api03-...">
+        <small style="color:#666;font-size:0.75rem;font-weight:normal;">
+          <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> で取得できます
+        </small>
+      </label>
+      <label>所在地（農業カレンダーの基準）
+        <input type="text" id="location-input" placeholder="松本市">
+      </label>
+      <div style="background:#f0faf3;padding:12px;border-radius:8px;font-size:0.8rem;color:#555;margin-top:8px;">
+        💡 API Keyはこのブラウザにのみ保存されます。外部には送信されません（AI相談時はAnthropic APIに送信されます）。
+      </div>
+      <div class="modal-actions">
+        <button onclick="saveSettings()" class="btn btn-primary">保存</button>
+        <button onclick="closeModal('settings-modal')" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 圃場追加モーダル -->
+  <div id="field-modal" class="modal">
+    <div class="modal-content">
+      <h2>🌾 圃場追加</h2>
+      <label>圃場名
+        <input type="text" id="field-name" placeholder="例：裏の田んぼ、家庭菜園A">
+      </label>
+      <label>種類
+        <select id="field-type">
+          <option value="rice">🌾 田んぼ</option>
+          <option value="vegetable">🥬 畑</option>
+          <option value="garden">🌻 家庭菜園</option>
+        </select>
+      </label>
+      <label>面積（㎡）
+        <input type="number" id="field-area" placeholder="例：100（省略可）">
+      </label>
+      <div class="modal-actions">
+        <button onclick="saveField()" class="btn btn-primary">保存</button>
+        <button onclick="closeModal('field-modal')" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 作物追加モーダル -->
+  <div id="crop-modal" class="modal">
+    <div class="modal-content">
+      <h2>🌱 作物追加</h2>
+      <label>圃場
+        <select id="crop-field">
+          <option value="">（圃場なし）</option>
+        </select>
+      </label>
+      <label>作物の種類 <span style="color:#e74c3c">*</span>
+        <select id="crop-guide">
+          <option value="">選択してください</option>
+          <optgroup label="田んぼ">
+            <option value="rice">🌾 米（コシヒカリ等）</option>
+          </optgroup>
+          <optgroup label="野菜">
+            <option value="tomato">🍅 トマト</option>
+            <option value="cucumber">🥒 きゅうり</option>
+            <option value="eggplant">🍆 ナス</option>
+            <option value="pepper">🫑 ピーマン</option>
+            <option value="pumpkin">🎃 カボチャ</option>
+            <option value="daikon">🥕 大根</option>
+            <option value="carrot">🥕 ニンジン</option>
+            <option value="spinach">🥬 ほうれん草</option>
+            <option value="lettuce">🥗 レタス</option>
+            <option value="onion">🧅 タマネギ</option>
+            <option value="potato">🥔 じゃがいも</option>
+            <option value="sweet_potato">🍠 さつまいも</option>
+          </optgroup>
+        </select>
+      </label>
+      <label>品種名（任意）
+        <input type="text" id="crop-variety" placeholder="例：コシヒカリ、桃太郎トマト">
+      </label>
+      <label>種まき日（任意）
+        <input type="date" id="crop-sowing">
+      </label>
+      <label>定植日（任意）
+        <input type="date" id="crop-planting">
+      </label>
+      <label>状態
+        <select id="crop-status">
+          <option value="planning">📋 計画中</option>
+          <option value="growing">🌱 育成中</option>
+          <option value="harvesting">📦 収穫中</option>
+          <option value="done">✅ 完了</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button onclick="saveCrop()" class="btn btn-primary">保存</button>
+        <button onclick="closeModal('crop-modal')" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 作業記録モーダル -->
+  <div id="worklog-modal" class="modal">
+    <div class="modal-content">
+      <h2>📝 作業記録</h2>
+      <label>日付 <span style="color:#e74c3c">*</span>
+        <input type="date" id="log-date">
+      </label>
+      <label>圃場
+        <select id="log-field">
+          <option value="">（圃場なし）</option>
+        </select>
+      </label>
+      <label>作物
+        <select id="log-crop">
+          <option value="">（作物なし）</option>
+        </select>
+      </label>
+      <label>作業内容
+        <select id="log-worktype">
+          <option value="水やり">💧 水やり</option>
+          <option value="代かき">🌾 代かき</option>
+          <option value="種まき">🌱 種まき</option>
+          <option value="定植">🪴 定植</option>
+          <option value="田起こし">🚜 田起こし</option>
+          <option value="芽かき">✂️ 芽かき・間引き</option>
+          <option value="草取り">🌿 草取り</option>
+          <option value="施肥">💊 施肥・追肥</option>
+          <option value="中干し">🌊 中干し</option>
+          <option value="農薬散布">🧴 農薬散布</option>
+          <option value="土寄せ">🚜 土寄せ</option>
+          <option value="マルチ張り">🎨 マルチ張り</option>
+          <option value="収穫">📦 収穫</option>
+          <option value="その他">📋 その他</option>
+        </select>
+      </label>
+      <label>天気
+        <select id="log-weather">
+          <option value="晴れ">☀️ 晴れ</option>
+          <option value="くもり">⛅ くもり</option>
+          <option value="雨">🌧️ 雨</option>
+          <option value="雪">❄️ 雪</option>
+        </select>
+      </label>
+      <label>作業時間（分）
+        <input type="number" id="log-duration" placeholder="例：60（省略可）" min="1" max="720">
+      </label>
+      <label>メモ
+        <textarea id="log-notes" rows="3" placeholder="使った農薬・肥料、気づいたこと、次回注意点など"></textarea>
+      </label>
+      <label>写真（任意）
+        <input type="file" id="log-photo" accept="image/*" onchange="previewLogPhoto(event)">
+        <div id="log-photo-preview"></div>
+      </label>
+      <div class="modal-actions">
+        <button onclick="saveWorkLog()" class="btn btn-primary">保存</button>
+        <button onclick="closeModal('worklog-modal')" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 収穫記録モーダル -->
+  <div id="harvest-modal" class="modal">
+    <div class="modal-content">
+      <h2>📦 収穫記録</h2>
+      <label>日付 <span style="color:#e74c3c">*</span>
+        <input type="date" id="harvest-date">
+      </label>
+      <label>作物
+        <select id="harvest-crop">
+          <option value="">（作物なし）</option>
+        </select>
+      </label>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+        <label>収穫量 <span style="color:#e74c3c">*</span>
+          <input type="number" id="harvest-qty" step="0.1" min="0" placeholder="1.5">
+        </label>
+        <label>単位
+          <select id="harvest-unit">
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="本">本</option>
+            <option value="個">個</option>
+            <option value="袋">袋</option>
+            <option value="束">束</option>
+          </select>
+        </label>
+      </div>
+      <label>メモ
+        <textarea id="harvest-notes" rows="2" placeholder="品質メモ、保存先、食べた感想など"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button onclick="saveHarvest()" class="btn btn-primary">保存</button>
+        <button onclick="closeModal('harvest-modal')" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== スクリプト読み込み ===== -->
+  <script src="guide.js"></script>
+  <script src="app.js"></script>
+  <script src="gantt.js"></script>
+  <script src="ai.js"></script>
+  <script src="stats.js"></script>
+
+  <script>
+    // ===== 追加初期化 =====
+    document.addEventListener('DOMContentLoaded', () => {
+      // 今日の日付表示
+      const todayDisplay = document.getElementById('today-display');
+      if (todayDisplay) {
+        const now = new Date();
+        const days = ['日', '月', '火', '水', '木', '金', '土'];
+        todayDisplay.textContent =
+          `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${days[now.getDay()]}）`;
+      }
+    });
+
+    // AI会話クリア
+    function clearAiChat() {
+      if (aiMessages.length > 0 && !confirm('会話履歴をクリアしますか？')) return;
+      aiMessages = [];
+      renderAiMessages();
+    }
+  </script>
+</body>
+</html>
