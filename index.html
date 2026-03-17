@@ -6,6 +6,9 @@
   <title>🌾 農作業日誌</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Firebase SDK（家族共有機能・オプション） -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -13,6 +16,7 @@
   <header>
     <h1>🌾 農作業日誌</h1>
     <div class="header-actions">
+      <span id="sync-indicator" style="font-size:0.75rem;color:#999;padding:4px 8px;background:#f5f5f5;border-radius:12px;">🔴 ローカル保存</span>
       <button onclick="exportJSON()" class="btn btn-sm">💾 バックアップ</button>
       <button onclick="document.getElementById('importFile').click()" class="btn btn-sm">📂 復元</button>
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
@@ -216,6 +220,37 @@
       <div style="background:#f0faf3;padding:12px;border-radius:8px;font-size:0.8rem;color:#555;margin-top:8px;">
         💡 API Keyはこのブラウザにのみ保存されます。外部には送信されません（AI相談時はAnthropic APIに送信されます）。
       </div>
+
+      <!-- 家族共有設定 -->
+      <div style="border-top:1px solid #e0e0e0;margin-top:20px;padding-top:16px;">
+        <h3 style="font-size:0.95rem;color:#2d6a4f;margin-bottom:4px;">👨‍👩‍👧 家族共有設定（任意）</h3>
+        <p style="font-size:0.78rem;color:#666;margin-bottom:12px;">
+          Firebaseを設定すると、家族全員がリアルタイムで同じデータを共有できます。
+        </p>
+        <label>家族コード（例: yamada-farm-2026）
+          <input type="text" id="family-code-input" placeholder="yamada-farm-2026">
+          <small style="color:#666;font-size:0.75rem;">家族みんなで同じコードを使います</small>
+        </label>
+        <label>Firebase APIキー
+          <input type="text" id="firebase-apikey-input" placeholder="AIzaSy...">
+        </label>
+        <label>Firebase プロジェクトID
+          <input type="text" id="firebase-projectid-input" placeholder="my-farm-app-12345">
+        </label>
+        <details style="margin-top:8px;">
+          <summary style="font-size:0.8rem;color:#40916c;cursor:pointer;">📖 Firebase設定の手順を見る</summary>
+          <div style="background:#f8f8f8;padding:12px;border-radius:8px;font-size:0.78rem;color:#444;margin-top:8px;line-height:1.7;">
+            1. <a href="https://firebase.google.com" target="_blank" rel="noopener">firebase.google.com</a> → 「使ってみる」→ Googleアカウントでログイン<br>
+            2. 「プロジェクトを追加」→ 名前（例: farm-manager）→ 作成<br>
+            3. 左メニュー「Firestore Database」→「データベースの作成」→「テストモード」<br>
+            4. 左メニュー「プロジェクトの設定」→「マイアプリ」→「&lt;/&gt;」ウェブアプリ追加<br>
+            5. 表示された <code>firebaseConfig</code> から <code>apiKey</code> と <code>projectId</code> をコピー<br>
+            6. 上のフォームに貼り付け → 家族コードを決めて入力 → 保存<br>
+            7. 家族に <strong>アプリのURL</strong> と <strong>家族コード</strong> をLINEで共有するだけ！
+          </div>
+        </details>
+      </div>
+
       <div class="modal-actions">
         <button onclick="saveSettings()" class="btn btn-primary">保存</button>
         <button onclick="closeModal('settings-modal')" class="btn">キャンセル</button>
@@ -401,6 +436,7 @@
 
   <!-- ===== スクリプト読み込み ===== -->
   <script src="guide.js"></script>
+  <script src="firebase.js"></script>
   <script src="app.js"></script>
   <script src="gantt.js"></script>
   <script src="ai.js"></script>

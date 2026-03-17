@@ -7,7 +7,13 @@ let state = {
   crops: [],
   workLogs: [],
   harvests: [],
-  settings: { apiKey: '', location: '松本市' }
+  settings: {
+    apiKey: '',
+    location: '松本市',
+    familyCode: '',
+    firebaseApiKey: '',
+    firebaseProjectId: ''
+  }
 };
 
 // 編集中のID
@@ -38,6 +44,87 @@ function saveData() {
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// ===== Firebase 設定 =====
+function buildFirebaseConfig(settings) {
+  const projectId = settings.firebaseProjectId;
+  return {
+    apiKey: settings.firebaseApiKey,
+    authDomain: `${projectId}.firebaseapp.com`,
+    projectId,
+    storageBucket: `${projectId}.appspot.com`,
+    messagingSenderId: '',
+    appId: ''
+  };
+}
+
+// Firebase 初期化（非同期・ノンブロッキング）
+async function initFirebaseFromSettings() {
+  const s = state.settings;
+  if (!s.familyCode || !s.firebaseApiKey || !s.firebaseProjectId) {
+    updateSyncStatus(false);
+    return;
+  }
+  const config = buildFirebaseConfig(s);
+  const ok = initFirestore(config, s.familyCode);
+  if (!ok) return;
+
+  const fbData = await loadAllFromFirestore();
+  if (fbData) {
+    state.fields   = fbData.fields;
+    state.crops    = fbData.crops;
+    state.workLogs = fbData.workLogs;
+    state.harvests = fbData.harvests;
+    saveData(); // ローカルキャッシュを更新
+    renderDashboard();
+    renderAll();
+    renderWorkLogs();
+    renderHarvests();
+  }
+  startRealtimeSync(onFirestoreUpdate);
+}
+
+// リアルタイム更新コールバック（デバウンス付き）
+let _syncTimeout = null;
+function onFirestoreUpdate(collection, docs) {
+  state[collection] = docs;
+  clearTimeout(_syncTimeout);
+  _syncTimeout = setTimeout(() => {
+    saveData();
+    renderDashboard();
+    renderAll();
+    renderWorkLogs();
+    renderHarvests();
+  }, 200);
+}
+
+// ===== 写真圧縮（Firestoreの1MBドキュメント制限対応） =====
+async function compressImage(base64, maxKB = 100) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      const maxDim = 800;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else { width = Math.round(width * maxDim / height); height = maxDim; }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+      let quality = 0.8;
+      let result = canvas.toDataURL('image/jpeg', quality);
+      while (result.length > maxKB * 1024 * 1.37 && quality > 0.1) {
+        quality -= 0.1;
+        result = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve(result);
+    };
+    img.src = base64;
+  });
 }
 
 // ===== タブナビゲーション =====
@@ -105,15 +192,29 @@ document.addEventListener('click', (e) => {
 function openSettings() {
   document.getElementById('api-key-input').value = state.settings.apiKey || '';
   document.getElementById('location-input').value = state.settings.location || '松本市';
+  document.getElementById('family-code-input').value = state.settings.familyCode || '';
+  document.getElementById('firebase-apikey-input').value = state.settings.firebaseApiKey || '';
+  document.getElementById('firebase-projectid-input').value = state.settings.firebaseProjectId || '';
   openModal('settings-modal');
 }
 
 function saveSettings() {
   state.settings.apiKey = document.getElementById('api-key-input').value.trim();
   state.settings.location = document.getElementById('location-input').value.trim() || '松本市';
+  state.settings.familyCode = document.getElementById('family-code-input').value.trim();
+  state.settings.firebaseApiKey = document.getElementById('firebase-apikey-input').value.trim();
+  state.settings.firebaseProjectId = document.getElementById('firebase-projectid-input').value.trim();
   saveData();
   closeModal('settings-modal');
-  showToast('✅ 設定を保存しました');
+
+  const s = state.settings;
+  if (s.familyCode && s.firebaseApiKey && s.firebaseProjectId) {
+    showToast('✅ 設定を保存しました・クラウド同期を開始します');
+    initFirebaseFromSettings();
+  } else {
+    showToast('✅ 設定を保存しました');
+    updateSyncStatus(false);
+  }
 }
 
 // ===== 圃場管理 =====
@@ -140,24 +241,27 @@ function saveField() {
   const name = document.getElementById('field-name').value.trim();
   if (!name) { showToast('⚠️ 圃場名を入力してください'); return; }
 
+  let savedItem;
   if (editingId.field) {
-    const field = state.fields.find(f => f.id === editingId.field);
-    if (field) {
-      field.name = name;
-      field.type = document.getElementById('field-type').value;
-      field.area = document.getElementById('field-area').value;
+    savedItem = state.fields.find(f => f.id === editingId.field);
+    if (savedItem) {
+      savedItem.name = name;
+      savedItem.type = document.getElementById('field-type').value;
+      savedItem.area = document.getElementById('field-area').value;
     }
   } else {
-    state.fields.push({
+    savedItem = {
       id: generateId(),
       name,
       type: document.getElementById('field-type').value,
       area: document.getElementById('field-area').value,
       createdAt: new Date().toISOString()
-    });
+    };
+    state.fields.push(savedItem);
   }
 
   saveData();
+  if (savedItem && isFirestoreReady()) saveDocToFirestore('fields', savedItem.id, savedItem);
   closeModal('field-modal');
   renderAll();
   showToast('✅ 圃場を保存しました');
@@ -167,6 +271,7 @@ function deleteField(id) {
   if (!confirm('この圃場を削除しますか？（関連する作物データは残ります）')) return;
   state.fields = state.fields.filter(f => f.id !== id);
   saveData();
+  if (isFirestoreReady()) deleteDocFromFirestore('fields', id);
   renderAll();
   showToast('🗑️ 圃場を削除しました');
 }
@@ -234,21 +339,22 @@ function saveCrop() {
   const guide = CROP_GUIDES[guideKey];
   const year = new Date().getFullYear();
 
+  let savedItem;
   if (editingId.crop) {
-    const crop = state.crops.find(c => c.id === editingId.crop);
-    if (crop) {
-      crop.fieldId = document.getElementById('crop-field').value;
-      crop.guideKey = guideKey;
-      crop.name = guide.name;
-      crop.variety = document.getElementById('crop-variety').value.trim();
-      crop.sowingDate = document.getElementById('crop-sowing').value;
-      crop.plantingDate = document.getElementById('crop-planting').value;
-      crop.status = document.getElementById('crop-status').value;
+    savedItem = state.crops.find(c => c.id === editingId.crop);
+    if (savedItem) {
+      savedItem.fieldId = document.getElementById('crop-field').value;
+      savedItem.guideKey = guideKey;
+      savedItem.name = guide.name;
+      savedItem.variety = document.getElementById('crop-variety').value.trim();
+      savedItem.sowingDate = document.getElementById('crop-sowing').value;
+      savedItem.plantingDate = document.getElementById('crop-planting').value;
+      savedItem.status = document.getElementById('crop-status').value;
     }
   } else {
     const sowingDate = document.getElementById('crop-sowing').value;
     const cropYear = sowingDate ? parseInt(sowingDate.split('-')[0]) : year;
-    state.crops.push({
+    savedItem = {
       id: generateId(),
       fieldId: document.getElementById('crop-field').value,
       guideKey,
@@ -259,10 +365,12 @@ function saveCrop() {
       status: document.getElementById('crop-status').value,
       year: cropYear,
       createdAt: new Date().toISOString()
-    });
+    };
+    state.crops.push(savedItem);
   }
 
   saveData();
+  if (savedItem && isFirestoreReady()) saveDocToFirestore('crops', savedItem.id, savedItem);
   closeModal('crop-modal');
   renderAll();
   showToast('✅ 作物を保存しました');
@@ -272,6 +380,7 @@ function deleteCrop(id) {
   if (!confirm('この作物を削除しますか？')) return;
   state.crops = state.crops.filter(c => c.id !== id);
   saveData();
+  if (isFirestoreReady()) deleteDocFromFirestore('crops', id);
   renderAll();
   showToast('🗑️ 作物を削除しました');
 }
@@ -367,10 +476,14 @@ function previewLogPhoto(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
-    logPhotoData = e.target.result;
+  reader.onload = async (e) => {
+    // Firestoreを使う場合は100KB以下に圧縮
+    const compressed = isFirestoreReady()
+      ? await compressImage(e.target.result, 100)
+      : e.target.result;
+    logPhotoData = compressed;
     document.getElementById('log-photo-preview').innerHTML =
-      `<img src="${e.target.result}" alt="プレビュー">`;
+      `<img src="${compressed}" alt="プレビュー">`;
   };
   reader.readAsDataURL(file);
 }
@@ -390,14 +503,17 @@ function saveWorkLog() {
     photo: logPhotoData
   };
 
+  let savedItem;
   if (editingId.workLog) {
-    const log = state.workLogs.find(l => l.id === editingId.workLog);
-    if (log) Object.assign(log, data);
+    savedItem = state.workLogs.find(l => l.id === editingId.workLog);
+    if (savedItem) Object.assign(savedItem, data);
   } else {
-    state.workLogs.push({ id: generateId(), ...data, createdAt: new Date().toISOString() });
+    savedItem = { id: generateId(), ...data, createdAt: new Date().toISOString() };
+    state.workLogs.push(savedItem);
   }
 
   saveData();
+  if (savedItem && isFirestoreReady()) saveDocToFirestore('workLogs', savedItem.id, savedItem);
   closeModal('worklog-modal');
   renderWorkLogs();
   renderDashboard();
@@ -408,6 +524,7 @@ function deleteWorkLog(id) {
   if (!confirm('この作業記録を削除しますか？')) return;
   state.workLogs = state.workLogs.filter(l => l.id !== id);
   saveData();
+  if (isFirestoreReady()) deleteDocFromFirestore('workLogs', id);
   renderWorkLogs();
   showToast('🗑️ 削除しました');
 }
@@ -497,14 +614,17 @@ function saveHarvest() {
     year
   };
 
+  let savedItem;
   if (editingId.harvest) {
-    const h = state.harvests.find(h => h.id === editingId.harvest);
-    if (h) Object.assign(h, data);
+    savedItem = state.harvests.find(h => h.id === editingId.harvest);
+    if (savedItem) Object.assign(savedItem, data);
   } else {
-    state.harvests.push({ id: generateId(), ...data, createdAt: new Date().toISOString() });
+    savedItem = { id: generateId(), ...data, createdAt: new Date().toISOString() };
+    state.harvests.push(savedItem);
   }
 
   saveData();
+  if (savedItem && isFirestoreReady()) saveDocToFirestore('harvests', savedItem.id, savedItem);
   closeModal('harvest-modal');
   renderHarvests();
   renderDashboard();
@@ -515,6 +635,7 @@ function deleteHarvest(id) {
   if (!confirm('この収穫記録を削除しますか？')) return;
   state.harvests = state.harvests.filter(h => h.id !== id);
   saveData();
+  if (isFirestoreReady()) deleteDocFromFirestore('harvests', id);
   renderHarvests();
   showToast('🗑️ 削除しました');
 }
@@ -863,14 +984,10 @@ function showPhotoModal(logId) {
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
-  loadData();
+  loadData();         // localStorageから即時読み込み
+  updateSyncStatus(false);
   renderDashboard();
   renderAll();
-
-  // 設定を読み込んで表示に反映
-  if (state.settings.apiKey) {
-    // AI相談が使える状態
-  }
 
   // ガント年選択の初期設定
   const ganttYear = document.getElementById('ganttYear');
@@ -884,4 +1001,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ganttYear.appendChild(opt);
     }
   }
+
+  // Firebase 初期化（非同期・ノンブロッキング）
+  initFirebaseFromSettings();
 });
