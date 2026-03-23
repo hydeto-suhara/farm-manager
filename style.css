@@ -523,13 +523,21 @@ label input:focus, label select:focus, label textarea:focus {
 }
 
 .worklog-icon { font-size: 1.8rem; }
-.worklog-main { flex: 1; }
+.worklog-main { flex: 1; min-width: 0; }
 .worklog-date { font-size: 0.75rem; color: var(--gray-600); }
 .worklog-type { font-size: 1rem; font-weight: 700; color: var(--green-dark); }
 .worklog-meta { font-size: 0.8rem; color: var(--gray-600); margin-top: 2px; }
 .worklog-notes { font-size: 0.85rem; color: var(--gray-800); margin-top: 6px; }
-.worklog-photo { margin-top: 8px; }
-.worklog-photo img { max-width: 120px; border-radius: 8px; cursor: pointer; }
+.worklog-photo { margin-top: 10px; }
+.worklog-photo img {
+  max-width: 200px;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  cursor: pointer;
+  display: block;
+  border: 2px solid var(--green-light);
+}
 .worklog-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
 /* ===== 作物カード ===== */
@@ -698,9 +706,12 @@ label input:focus, label select:focus, label textarea:focus {
 
 /* 写真プレビュー */
 #log-photo-preview img {
-  max-width: 120px;
+  max-width: 200px;
+  width: 100%;
+  height: auto;
   border-radius: 8px;
   margin-top: 8px;
+  display: block;
   border: 2px solid var(--green-light);
 }
 
