@@ -10,9 +10,9 @@ let state = {
   settings: {
     apiKey: '',
     location: '松本市',
-    familyCode: '',
-    firebaseApiKey: '',
-    firebaseProjectId: ''
+    familyCode: 'suhara-farm',
+    firebaseApiKey: 'AIzaSyDfP8n6mzJbgNnRAQ-uJM8_W5xt5d3pLdo',
+    firebaseProjectId: 'firm-control'
   }
 };
 
@@ -22,6 +22,13 @@ let editingId = { field: null, crop: null, workLog: null, harvest: null };
 let logPhotoData = null;
 
 // ===== データ管理 =====
+// Firebase デフォルト設定
+const FIREBASE_DEFAULTS = {
+  familyCode: 'suhara-farm',
+  firebaseApiKey: 'AIzaSyDfP8n6mzJbgNnRAQ-uJM8_W5xt5d3pLdo',
+  firebaseProjectId: 'firm-control'
+};
+
 function loadData() {
   try {
     const stored = localStorage.getItem('farmManagerData');
@@ -29,6 +36,10 @@ function loadData() {
       const parsed = JSON.parse(stored);
       state = { ...state, ...parsed };
     }
+    // Firebase設定が空の場合はデフォルト値を使用
+    if (!state.settings.firebaseApiKey) state.settings.firebaseApiKey = FIREBASE_DEFAULTS.firebaseApiKey;
+    if (!state.settings.firebaseProjectId) state.settings.firebaseProjectId = FIREBASE_DEFAULTS.firebaseProjectId;
+    if (!state.settings.familyCode) state.settings.familyCode = FIREBASE_DEFAULTS.familyCode;
   } catch (e) {
     console.error('データ読み込みエラー:', e);
   }
