@@ -215,7 +215,7 @@
         </small>
       </label>
       <label>所在地（農業カレンダーの基準）
-        <input type="text" id="location-input" placeholder="松本市">
+        <input type="text" id="location-input" placeholder="池田町">
       </label>
       <div style="background:#f0faf3;padding:12px;border-radius:8px;font-size:0.8rem;color:#555;margin-top:8px;">
         💡 API Keyはこのブラウザにのみ保存されます。外部には送信されません（AI相談時はAnthropic APIに送信されます）。
@@ -268,6 +268,7 @@
       <label>種類
         <select id="field-type">
           <option value="rice">🌾 田んぼ</option>
+          <option value="rice_winter">❄️ 田んぼ（冬期湛水）</option>
           <option value="vegetable">🥬 畑</option>
           <option value="garden">🌻 家庭菜園</option>
         </select>
@@ -296,6 +297,9 @@
           <option value="">選択してください</option>
           <optgroup label="田んぼ">
             <option value="rice">🌾 米（コシヒカリ等）</option>
+          </optgroup>
+          <optgroup label="長野・寒冷地向け">
+            <option value="soba">🌿 そば</option>
           </optgroup>
           <optgroup label="野菜">
             <option value="tomato">🍅 トマト</option>
@@ -365,6 +369,8 @@
           <option value="草取り">🌿 草取り</option>
           <option value="施肥">💊 施肥・追肥</option>
           <option value="中干し">🌊 中干し</option>
+          <option value="冬期湛水">❄️ 冬期湛水</option>
+          <option value="水位確認">🔍 水位確認（冬期湛水）</option>
           <option value="農薬散布">🧴 農薬散布</option>
           <option value="土寄せ">🚜 土寄せ</option>
           <option value="マルチ張り">🎨 マルチ張り</option>
