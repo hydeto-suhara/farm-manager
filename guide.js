@@ -200,6 +200,75 @@ const CROP_GUIDES = {
       { month: 9, week: 2, task: '開花（秋そば）', icon: '🌸', detail: '長野県の秋そばの開花期。一面に白い花が咲く。受粉期間中の雨や霜に注意。', color: '#f0f0f0' },
       { month: 10, week: 1, task: '収穫（秋そば）', icon: '📦', detail: '池田町では10月上〜中旬が収穫の目安。霜が降りる前に収穫完了。実がこぼれやすいので丁寧に刈り取る。乾燥後に脱穀。', color: '#ff9800' },
     ]
+  },
+  broccoli: {
+    name: 'ブロッコリー',
+    icon: '🥦',
+    type: 'vegetable',
+    schedule: [
+      { month: 7, week: 2, task: '種まき（育苗）', icon: '🌱', detail: 'セルトレイに種まき。発芽温度20〜25℃。暑い時期なので日中の高温に注意。', color: '#a8d08d' },
+      { month: 8, week: 3, task: '定植', icon: '🪴', detail: '本葉4〜5枚で定植。株間50〜60cm。深植えしない。', color: '#4caf50' },
+      { month: 9, week: 1, task: '追肥・土寄せ', icon: '💊', detail: '定植2〜3週間後に追肥して土寄せ。草取りも同時に行う。', color: '#9c27b0' },
+      { month: 10, week: 1, task: '頂花蕾の収穫', icon: '📦', detail: '花蕾が直径12〜15cmになったら収穫。黄色くなる前に早めに収穫する。', color: '#ff9800' },
+      { month: 10, week: 3, task: '側花蕾の収穫', icon: '📦', detail: '頂花蕾を収穫後、脇から側花蕾が育つ。小さめだが次々収穫できる。', color: '#ff9800' },
+      { month: 11, week: 2, task: '収穫終了・片付け', icon: '🌿', detail: '霜が降り始める前に収穫を終わらせ、残渣を片付ける。', color: '#90a4ae' },
+    ]
+  },
+  broad_bean: {
+    name: 'そら豆',
+    icon: '🫘',
+    type: 'vegetable',
+    schedule: [
+      { month: 10, week: 3, task: '種まき', icon: '🌱', detail: '直まきか育苗ポットに種まき。種のおはぐろ（黒い部分）を下にして斜めに挿す。', color: '#a8d08d' },
+      { month: 11, week: 1, task: '定植（育苗の場合）', icon: '🪴', detail: '本葉1〜2枚で定植。株間30cm。霜よけのトンネル被覆があると安心。', color: '#4caf50' },
+      { month: 11, week: 2, task: '越冬前の管理', icon: '🌿', detail: '草丈15〜20cmで越冬。背が高すぎると寒害を受けやすいので摘心する。', color: '#43a047' },
+      { month: 3, week: 2, task: '春の追肥', icon: '💊', detail: '越冬後、生育が再開したら追肥。支柱を立てて倒れを防ぐ。', color: '#9c27b0' },
+      { month: 4, week: 2, task: '摘心・整枝', icon: '✂️', detail: '草丈50〜60cmになったら頂部を摘心。わき芽を4〜5本残して整枝。', color: '#ff7043' },
+      { month: 5, week: 3, task: '収穫', icon: '📦', detail: '莢が下向きになり、豆のすじが黒くなり始めたら収穫適期。採り遅れに注意。', color: '#ff9800' },
+      { month: 6, week: 1, task: '収穫・片付け', icon: '📦', detail: '収穫が終わったら株を抜いて片付け。次の夏野菜の準備をする。', color: '#ff9800' },
+    ]
+  },
+  pea: {
+    name: 'えんどう豆',
+    icon: '🫛',
+    type: 'vegetable',
+    schedule: [
+      { month: 10, week: 4, task: '種まき', icon: '🌱', detail: '直まき。深さ2〜3cmに2〜3粒まいて後で間引く。早まきしすぎると大きくなりすぎて越冬できない。', color: '#a8d08d' },
+      { month: 11, week: 1, task: '発芽確認', icon: '👀', detail: '10日程度で発芽。草丈5〜8cmで越冬させる。霜よけのトンネルがあると安全。', color: '#81c784' },
+      { month: 3, week: 2, task: '春の管理・支柱立て', icon: '🌿', detail: '越冬後に生育再開。つるが伸びてきたら支柱やネットを設置して誘引する。', color: '#43a047' },
+      { month: 4, week: 1, task: '追肥', icon: '💊', detail: '開花前に追肥。窒素肥料を与えすぎると葉ばかり茂るので注意。', color: '#9c27b0' },
+      { month: 5, week: 1, task: '収穫開始（さやえんどう）', icon: '📦', detail: '莢がまだ薄く、豆が小さい状態で収穫するとさやえんどうとして食べられる。', color: '#ff9800' },
+      { month: 5, week: 3, task: '収穫（グリーンピース）', icon: '📦', detail: '豆が莢の中で膨らんできたら収穫。莢ごと収穫してから豆を取り出す。', color: '#ff9800' },
+      { month: 6, week: 1, task: '片付け', icon: '🌿', detail: '収穫が終わったら株を撤去。連作障害を防ぐため同じ場所での栽培は4〜5年空ける。', color: '#90a4ae' },
+    ]
+  },
+  sanchu: {
+    name: 'サンチュ',
+    icon: '🥬',
+    type: 'vegetable',
+    schedule: [
+      { month: 3, week: 2, task: '種まき（育苗・春）', icon: '🌱', detail: 'セルトレイや育苗ポットに種まき。好光性種子なので覆土は薄く。20〜25℃で発芽。', color: '#a8d08d' },
+      { month: 4, week: 2, task: '定植（春）', icon: '🪴', detail: '本葉3〜4枚で定植。株間25〜30cm。過湿に弱いので水はけの良い場所に。', color: '#4caf50' },
+      { month: 5, week: 1, task: '収穫開始（春）', icon: '📦', detail: '外葉から順に必要な分だけかき取って収穫。株元から5〜6枚残して収穫すると長く楽しめる。', color: '#ff9800' },
+      { month: 6, week: 2, task: '収穫継続・管理', icon: '📦', detail: '引き続き外葉からかき取る。とう立ちしてきたら収穫終了のサイン。', color: '#ff9800' },
+      { month: 8, week: 3, task: '種まき（育苗・秋）', icon: '🌱', detail: '高温期は発芽しにくい。冷蔵庫で数時間冷やした水に浸してから種まきすると発芽しやすい。', color: '#a8d08d' },
+      { month: 9, week: 2, task: '定植（秋）', icon: '🪴', detail: '本葉3〜4枚で定植。秋は病害が少なく育てやすい。', color: '#4caf50' },
+      { month: 10, week: 1, task: '収穫（秋）', icon: '📦', detail: '外葉からかき取って収穫。霜が降りるまで収穫できる。', color: '#ff9800' },
+    ]
+  },
+  nira: {
+    name: 'ニラ',
+    icon: '🌿',
+    type: 'vegetable',
+    schedule: [
+      { month: 3, week: 3, task: '種まき', icon: '🌱', detail: 'セルトレイや育苗床に種まき。発芽まで10〜14日。発芽率が低いので多めに種まき。', color: '#a8d08d' },
+      { month: 4, week: 4, task: '定植', icon: '🪴', detail: '草丈15〜20cmで5〜6本をまとめて1株に定植。株間20〜25cm。', color: '#4caf50' },
+      { month: 5, week: 2, task: '追肥', icon: '💊', detail: '定植後2〜3週間で追肥。生育が旺盛になってきたら月1回の追肥を続ける。', color: '#9c27b0' },
+      { month: 6, week: 1, task: '1年目の収穫開始', icon: '📦', detail: '株が十分育ったら地上2〜3cmを残して刈り取る。刈り取り後は追肥して株を充実させる。', color: '#ff9800' },
+      { month: 7, week: 2, task: '2回目の収穫', icon: '📦', detail: '前回収穫から約1ヶ月で再び収穫できる。年3〜4回収穫可能。', color: '#ff9800' },
+      { month: 8, week: 2, task: '花芽の摘み取り', icon: '✂️', detail: '花茎（ニラの花）が伸びてきたら早めに摘み取る。放置すると株が消耗する。ニラの花も食べられる。', color: '#ff7043' },
+      { month: 9, week: 1, task: '収穫・株の充実', icon: '📦', detail: '秋の収穫。年々株が充実して収穫量が増える多年草。4〜5年は同じ場所で収穫できる。', color: '#ff9800' },
+    ]
   }
 };
 
