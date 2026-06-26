@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 許可するアカウント（UID）の一覧。家族を増やすときはここに追記する。
+    function isAllowed() {
+      return request.auth != null
+        && request.auth.uid in [
+          'W8YdZjTdQbhzSjDjp4kutWHbuv03' // suhara.webworks@gmail.com
+        ];
+    }
+    // 現在の本番運用は単一家族のみ。将来 family を増やす場合は
+    // families/{familyCode}/members/{uid} などの membership 判定に移行する。
+    function isAllowedFamily(familyCode) {
+      return familyCode == 'suhara-farm';
+    }
+    match /families/{familyCode}/fields/{doc} {
+      allow read, write: if isAllowed() && isAllowedFamily(familyCode);
+    }
+    match /families/{familyCode}/crops/{doc} {
+      allow read, write: if isAllowed() && isAllowedFamily(familyCode);
+    }
+    match /families/{familyCode}/workLogs/{doc} {
+      allow read, write: if isAllowed() && isAllowedFamily(familyCode);
+    }
+    match /families/{familyCode}/harvests/{doc} {
+      allow read, write: if isAllowed() && isAllowedFamily(familyCode);
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

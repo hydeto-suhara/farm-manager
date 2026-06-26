@@ -16,6 +16,9 @@ let state = {
   }
 };
 
+const STORAGE_KEY = 'farmManagerData';
+const SESSION_API_KEY_KEY = 'farmManagerClaudeApiKey';
+
 // 編集中のID
 let editingId = { field: null, crop: null, workLog: null, harvest: null };
 // 作業ログの写真データ
@@ -31,25 +34,54 @@ const FIREBASE_DEFAULTS = {
 
 function loadData() {
   try {
-    const stored = localStorage.getItem('farmManagerData');
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      state = { ...state, ...parsed };
+      state = normalizeState(parsed);
+    } else {
+      state = normalizeState(state);
     }
     // Firebase設定が空の場合はデフォルト値を使用
     if (!state.settings.firebaseApiKey) state.settings.firebaseApiKey = FIREBASE_DEFAULTS.firebaseApiKey;
     if (!state.settings.firebaseProjectId) state.settings.firebaseProjectId = FIREBASE_DEFAULTS.firebaseProjectId;
     if (!state.settings.familyCode) state.settings.familyCode = FIREBASE_DEFAULTS.familyCode;
+    state.settings.apiKey = loadSessionApiKey();
   } catch (e) {
     console.error('データ読み込みエラー:', e);
+    state = normalizeState(state);
+    state.settings.apiKey = loadSessionApiKey();
   }
 }
 
 function saveData() {
   try {
-    localStorage.setItem('farmManagerData', JSON.stringify(state));
+    const persistedState = {
+      ...state,
+      settings: { ...state.settings, apiKey: '' }
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
   } catch (e) {
     showToast('⚠️ データの保存に失敗しました（容量不足の可能性があります）');
+  }
+}
+
+function loadSessionApiKey() {
+  try {
+    return sessionStorage.getItem(SESSION_API_KEY_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function saveSessionApiKey(apiKey) {
+  try {
+    if (apiKey) {
+      sessionStorage.setItem(SESSION_API_KEY_KEY, apiKey);
+    } else {
+      sessionStorage.removeItem(SESSION_API_KEY_KEY);
+    }
+  } catch (e) {
+    console.warn('セッション保存に失敗しました:', e);
   }
 }
 
@@ -83,10 +115,13 @@ async function initFirebaseFromSettings() {
 
   const fbData = await loadAllFromFirestore();
   if (fbData) {
-    state.fields   = fbData.fields;
-    state.crops    = fbData.crops;
-    state.workLogs = fbData.workLogs;
-    state.harvests = fbData.harvests;
+    state = normalizeState({
+      ...state,
+      fields: fbData.fields,
+      crops: fbData.crops,
+      workLogs: fbData.workLogs,
+      harvests: fbData.harvests
+    });
     saveData(); // ローカルキャッシュを更新
     renderDashboard();
     renderAll();
@@ -271,11 +306,12 @@ function openSettings() {
 }
 
 function saveSettings() {
-  state.settings.apiKey = document.getElementById('api-key-input').value.trim();
-  state.settings.location = document.getElementById('location-input').value.trim() || '松本市';
-  state.settings.familyCode = document.getElementById('family-code-input').value.trim();
-  state.settings.firebaseApiKey = document.getElementById('firebase-apikey-input').value.trim();
-  state.settings.firebaseProjectId = document.getElementById('firebase-projectid-input').value.trim();
+  state.settings.apiKey = normalizeText(document.getElementById('api-key-input').value, 300);
+  saveSessionApiKey(state.settings.apiKey);
+  state.settings.location = normalizeText(document.getElementById('location-input').value, 100) || '松本市';
+  state.settings.familyCode = normalizeText(document.getElementById('family-code-input').value, 100);
+  state.settings.firebaseApiKey = normalizeText(document.getElementById('firebase-apikey-input').value, 120);
+  state.settings.firebaseProjectId = normalizeText(document.getElementById('firebase-projectid-input').value, 100);
   saveData();
   closeModal('settings-modal');
 
@@ -312,21 +348,22 @@ function openFieldModal(id = null) {
 function saveField() {
   const name = document.getElementById('field-name').value.trim();
   if (!name) { showToast('⚠️ 圃場名を入力してください'); return; }
+  const normalizedName = normalizeText(name, 100);
 
   let savedItem;
   if (editingId.field) {
     savedItem = state.fields.find(f => f.id === editingId.field);
     if (savedItem) {
-      savedItem.name = name;
-      savedItem.type = document.getElementById('field-type').value;
-      savedItem.area = document.getElementById('field-area').value;
+      savedItem.name = normalizedName;
+      savedItem.type = normalizeText(document.getElementById('field-type').value, 30);
+      savedItem.area = normalizeText(document.getElementById('field-area').value, 30);
     }
   } else {
     savedItem = {
       id: generateId(),
-      name,
-      type: document.getElementById('field-type').value,
-      area: document.getElementById('field-area').value,
+      name: normalizedName,
+      type: normalizeText(document.getElementById('field-type').value, 30),
+      area: normalizeText(document.getElementById('field-area').value, 30),
       createdAt: new Date().toISOString()
     };
     state.fields.push(savedItem);
@@ -360,9 +397,9 @@ function renderFields() {
   const typeLabels = { rice: '🌾 田んぼ', vegetable: '🥬 畑', garden: '🌻 家庭菜園' };
   container.innerHTML = state.fields.map(f => `
     <span class="field-badge">
-      ${typeLabels[f.type] || f.type} ${f.name}${f.area ? ' (' + f.area + '㎡)' : ''}
-      <button onclick="openFieldModal('${f.id}')" style="background:none;border:none;cursor:pointer;padding:0 2px;">✏️</button>
-      <button onclick="deleteField('${f.id}')" style="background:none;border:none;cursor:pointer;padding:0 2px;">🗑️</button>
+      ${escapeHtml(typeLabels[f.type] || f.type)} ${escapeHtml(f.name)}${f.area ? ' (' + escapeHtml(f.area) + '㎡)' : ''}
+      <button onclick="openFieldModal('${escapeAttr(f.id)}')" style="background:none;border:none;cursor:pointer;padding:0 2px;">✏️</button>
+      <button onclick="deleteField('${escapeAttr(f.id)}')" style="background:none;border:none;cursor:pointer;padding:0 2px;">🗑️</button>
     </span>
   `).join('');
   container.className = 'field-list';
@@ -400,7 +437,7 @@ function populateCropSelects() {
   const fieldSelect = document.getElementById('crop-field');
   if (fieldSelect) {
     fieldSelect.innerHTML = '<option value="">（圃場なし）</option>' +
-      state.fields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+      state.fields.map(f => `<option value="${escapeAttr(f.id)}">${escapeHtml(f.name)}</option>`).join('');
   }
 }
 
@@ -415,26 +452,26 @@ function saveCrop() {
   if (editingId.crop) {
     savedItem = state.crops.find(c => c.id === editingId.crop);
     if (savedItem) {
-      savedItem.fieldId = document.getElementById('crop-field').value;
-      savedItem.guideKey = guideKey;
-      savedItem.name = guide.name;
-      savedItem.variety = document.getElementById('crop-variety').value.trim();
-      savedItem.sowingDate = document.getElementById('crop-sowing').value;
-      savedItem.plantingDate = document.getElementById('crop-planting').value;
-      savedItem.status = document.getElementById('crop-status').value;
+      savedItem.fieldId = normalizeReference(document.getElementById('crop-field').value);
+      savedItem.guideKey = normalizeText(guideKey, 50);
+      savedItem.name = normalizeText(guide.name, 100);
+      savedItem.variety = normalizeText(document.getElementById('crop-variety').value, 100);
+      savedItem.sowingDate = normalizeDate(document.getElementById('crop-sowing').value);
+      savedItem.plantingDate = normalizeDate(document.getElementById('crop-planting').value);
+      savedItem.status = normalizeText(document.getElementById('crop-status').value, 30);
     }
   } else {
     const sowingDate = document.getElementById('crop-sowing').value;
     const cropYear = sowingDate ? parseInt(sowingDate.split('-')[0]) : year;
     savedItem = {
       id: generateId(),
-      fieldId: document.getElementById('crop-field').value,
-      guideKey,
-      name: guide.name,
-      variety: document.getElementById('crop-variety').value.trim(),
-      sowingDate: document.getElementById('crop-sowing').value,
-      plantingDate: document.getElementById('crop-planting').value,
-      status: document.getElementById('crop-status').value,
+      fieldId: normalizeReference(document.getElementById('crop-field').value),
+      guideKey: normalizeText(guideKey, 50),
+      name: normalizeText(guide.name, 100),
+      variety: normalizeText(document.getElementById('crop-variety').value, 100),
+      sowingDate: normalizeDate(document.getElementById('crop-sowing').value),
+      plantingDate: normalizeDate(document.getElementById('crop-planting').value),
+      status: normalizeText(document.getElementById('crop-status').value, 30),
       year: cropYear,
       createdAt: new Date().toISOString()
     };
@@ -479,19 +516,19 @@ function renderCrops() {
           <div class="crop-card-header">
             <span class="crop-card-icon">${guide.icon || '🌱'}</span>
             <div>
-              <div class="crop-card-name">${crop.name}${crop.variety ? ' (' + crop.variety + ')' : ''}</div>
-              <div class="crop-card-variety">${crop.year || ''}年</div>
+              <div class="crop-card-name">${escapeHtml(crop.name)}${crop.variety ? ' (' + escapeHtml(crop.variety) + ')' : ''}</div>
+              <div class="crop-card-variety">${escapeHtml(crop.year || '')}年</div>
             </div>
           </div>
-          ${field ? `<div class="crop-card-field">📍 ${field.name}</div>` : ''}
-          <span class="crop-status-badge status-${crop.status}">${statusLabel[crop.status] || crop.status}</span>
+          ${field ? `<div class="crop-card-field">📍 ${escapeHtml(field.name)}</div>` : ''}
+          <span class="crop-status-badge status-${escapeAttr(crop.status)}">${escapeHtml(statusLabel[crop.status] || crop.status)}</span>
           <div class="crop-dates">
-            ${crop.sowingDate ? `🌱 種まき: ${formatDate(crop.sowingDate)}<br>` : ''}
-            ${crop.plantingDate ? `🪴 定植: ${formatDate(crop.plantingDate)}<br>` : ''}
+            ${crop.sowingDate ? `🌱 種まき: ${escapeHtml(formatDate(crop.sowingDate))}<br>` : ''}
+            ${crop.plantingDate ? `🪴 定植: ${escapeHtml(formatDate(crop.plantingDate))}<br>` : ''}
           </div>
           <div class="crop-actions">
-            <button class="btn btn-sm" onclick="openCropModal('${crop.id}')">✏️ 編集</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteCrop('${crop.id}')">🗑️</button>
+            <button class="btn btn-sm" onclick="openCropModal('${escapeAttr(crop.id)}')">✏️ 編集</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteCrop('${escapeAttr(crop.id)}')">🗑️</button>
           </div>
         </div>
       `;
@@ -526,7 +563,7 @@ function openWorkLogModal(id = null) {
       if (log.photo) {
         logPhotoData = log.photo;
         document.getElementById('log-photo-preview').innerHTML =
-          `<img src="${log.photo}" alt="作業写真">`;
+          `<img src="${escapeAttr(normalizePhoto(log.photo))}" alt="作業写真">`;
       }
       document.querySelector('#worklog-modal .modal-content h2').textContent = '📝 作業記録を編集';
     }
@@ -553,9 +590,9 @@ function previewLogPhoto(event) {
     const compressed = isFirestoreReady()
       ? await compressImage(e.target.result, 100)
       : e.target.result;
-    logPhotoData = compressed;
+    logPhotoData = normalizePhoto(compressed);
     document.getElementById('log-photo-preview').innerHTML =
-      `<img src="${compressed}" alt="プレビュー">`;
+      `<img src="${escapeAttr(logPhotoData)}" alt="プレビュー">`;
   };
   reader.readAsDataURL(file);
 }
@@ -565,14 +602,14 @@ function saveWorkLog() {
   if (!date) { showToast('⚠️ 日付を入力してください'); return; }
 
   const data = {
-    date,
-    fieldId: document.getElementById('log-field').value,
-    cropId: document.getElementById('log-crop').value,
-    workType: document.getElementById('log-worktype').value,
-    weather: document.getElementById('log-weather').value,
-    duration: document.getElementById('log-duration').value,
-    notes: document.getElementById('log-notes').value.trim(),
-    photo: logPhotoData
+    date: normalizeDate(date),
+    fieldId: normalizeReference(document.getElementById('log-field').value),
+    cropId: normalizeReference(document.getElementById('log-crop').value),
+    workType: normalizeText(document.getElementById('log-worktype').value, 50),
+    weather: normalizeText(document.getElementById('log-weather').value, 20),
+    duration: normalizeText(document.getElementById('log-duration').value, 20),
+    notes: normalizeText(document.getElementById('log-notes').value, 2000),
+    photo: normalizePhoto(logPhotoData)
   };
 
   let savedItem;
@@ -623,19 +660,19 @@ function renderWorkLogs() {
       <div class="worklog-card">
         <div class="worklog-icon">${wt.icon}</div>
         <div class="worklog-main">
-          <div class="worklog-date">${formatDate(log.date)} ${weatherIcons[log.weather] || ''}</div>
-          <div class="worklog-type">${log.workType}</div>
+          <div class="worklog-date">${escapeHtml(formatDate(log.date))} ${weatherIcons[log.weather] || ''}</div>
+          <div class="worklog-type">${escapeHtml(log.workType)}</div>
           <div class="worklog-meta">
-            ${guide ? guide.icon + ' ' : ''}${crop ? crop.name : ''}
-            ${field ? ' 📍' + field.name : ''}
-            ${log.duration ? ' ⏱️' + log.duration + '分' : ''}
+            ${guide ? guide.icon + ' ' : ''}${crop ? escapeHtml(crop.name) : ''}
+            ${field ? ' 📍' + escapeHtml(field.name) : ''}
+            ${log.duration ? ' ⏱️' + escapeHtml(log.duration) + '分' : ''}
           </div>
           ${log.notes ? `<div class="worklog-notes">${escapeHtml(log.notes)}</div>` : ''}
-          ${log.photo ? `<div class="worklog-photo"><img src="${log.photo}" alt="作業写真" onclick="showPhotoModal('${log.id}')"></div>` : ''}
+          ${log.photo ? `<div class="worklog-photo"><img src="${escapeAttr(normalizePhoto(log.photo))}" alt="作業写真" onclick="showPhotoModal('${escapeAttr(log.id)}')"></div>` : ''}
         </div>
         <div class="worklog-actions">
-          <button class="btn btn-sm" onclick="openWorkLogModal('${log.id}')">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteWorkLog('${log.id}')">🗑️</button>
+          <button class="btn btn-sm" onclick="openWorkLogModal('${escapeAttr(log.id)}')">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteWorkLog('${escapeAttr(log.id)}')">🗑️</button>
         </div>
       </div>
     `;
@@ -678,11 +715,11 @@ function saveHarvest() {
 
   const year = parseInt(date.split('-')[0]);
   const data = {
-    date,
-    cropId: document.getElementById('harvest-crop').value,
+    date: normalizeDate(date),
+    cropId: normalizeReference(document.getElementById('harvest-crop').value),
     quantity: parseFloat(qty),
-    unit: document.getElementById('harvest-unit').value,
-    notes: document.getElementById('harvest-notes').value.trim(),
+    unit: normalizeText(document.getElementById('harvest-unit').value, 20),
+    notes: normalizeText(document.getElementById('harvest-notes').value, 1000),
     year
   };
 
@@ -730,14 +767,14 @@ function renderHarvests() {
       <div class="harvest-card">
         <div class="harvest-icon">${guide ? guide.icon : '📦'}</div>
         <div>
-          <div class="harvest-meta">${formatDate(h.date)}</div>
-          <div style="font-weight:700; font-size:0.9rem;">${crop ? crop.name : '（作物未設定）'}</div>
-          <div class="harvest-qty">${h.quantity}<span class="harvest-unit">${h.unit}</span></div>
+          <div class="harvest-meta">${escapeHtml(formatDate(h.date))}</div>
+          <div style="font-weight:700; font-size:0.9rem;">${crop ? escapeHtml(crop.name) : '（作物未設定）'}</div>
+          <div class="harvest-qty">${escapeHtml(h.quantity)}<span class="harvest-unit">${escapeHtml(h.unit)}</span></div>
           ${h.notes ? `<div class="harvest-notes">${escapeHtml(h.notes)}</div>` : ''}
         </div>
         <div class="harvest-actions">
-          <button class="btn btn-sm" onclick="openHarvestModal('${h.id}')">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteHarvest('${h.id}')">🗑️</button>
+          <button class="btn btn-sm" onclick="openHarvestModal('${escapeAttr(h.id)}')">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteHarvest('${escapeAttr(h.id)}')">🗑️</button>
         </div>
       </div>
     `;
@@ -777,9 +814,9 @@ function renderMonthlyTasks() {
     <div class="task-item">
       <span class="task-icon">${t.taskIcon}</span>
       <div class="task-info">
-        <div class="task-name">${t.task}</div>
-        <div class="task-crop">${t.icon} ${t.crop} ${weekLabel[t.week] || ''}</div>
-        <div class="task-detail">${t.detail}</div>
+        <div class="task-name">${escapeHtml(t.task)}</div>
+        <div class="task-crop">${t.icon} ${escapeHtml(t.crop)} ${escapeHtml(weekLabel[t.week] || '')}</div>
+        <div class="task-detail">${escapeHtml(t.detail)}</div>
       </div>
     </div>
   `).join('');
@@ -803,10 +840,10 @@ function renderRecentLogs() {
     const crop = state.crops.find(c => c.id === log.cropId);
     return `
       <div class="log-item">
-        <span class="log-date">${formatDateShort(log.date)}</span>
+        <span class="log-date">${escapeHtml(formatDateShort(log.date))}</span>
         <div class="log-content">
-          <div class="log-work">${wtIcons[log.workType] || '📋'} ${log.workType}</div>
-          <div class="log-meta">${crop ? crop.name : ''}</div>
+          <div class="log-work">${wtIcons[log.workType] || '📋'} ${escapeHtml(log.workType)}</div>
+          <div class="log-meta">${crop ? escapeHtml(crop.name) : ''}</div>
         </div>
       </div>
     `;
@@ -831,8 +868,8 @@ function renderActiveCrops() {
       <div class="log-item">
         <span style="font-size:1.4rem">${guide.icon || '🌱'}</span>
         <div class="log-content">
-          <div class="log-work">${crop.name}${crop.variety ? ' (' + crop.variety + ')' : ''}</div>
-          <div class="log-meta">${statusLabel[crop.status] || crop.status} • ${crop.year || ''}年</div>
+          <div class="log-work">${escapeHtml(crop.name)}${crop.variety ? ' (' + escapeHtml(crop.variety) + ')' : ''}</div>
+          <div class="log-meta">${escapeHtml(statusLabel[crop.status] || crop.status)} • ${escapeHtml(crop.year || '')}年</div>
         </div>
       </div>
     `;
@@ -857,8 +894,8 @@ function renderRecentHarvests() {
       <div class="log-item">
         <span style="font-size:1.4rem">${guide ? guide.icon : '📦'}</span>
         <div class="log-content">
-          <div class="log-work">${crop ? crop.name : '作物'} ${h.quantity}${h.unit}</div>
-          <div class="log-meta">${formatDateShort(h.date)}</div>
+          <div class="log-work">${crop ? escapeHtml(crop.name) : '作物'} ${escapeHtml(h.quantity)}${escapeHtml(h.unit)}</div>
+          <div class="log-meta">${escapeHtml(formatDateShort(h.date))}</div>
         </div>
       </div>
     `;
@@ -872,7 +909,7 @@ function populateAllSelects() {
     const el = document.getElementById(id);
     if (el) {
       el.innerHTML = '<option value="">（圃場なし）</option>' +
-        state.fields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+        state.fields.map(f => `<option value="${escapeAttr(f.id)}">${escapeHtml(f.name)}</option>`).join('');
     }
   });
 
@@ -883,7 +920,7 @@ function populateAllSelects() {
       el.innerHTML = '<option value="">（作物なし）</option>' +
         state.crops.map(c => {
           const guide = CROP_GUIDES[c.guideKey] || {};
-          return `<option value="${c.id}">${guide.icon || '🌱'} ${c.name}${c.variety ? ' (' + c.variety + ')' : ''} (${c.year || ''}年)</option>`;
+          return `<option value="${escapeAttr(c.id)}">${guide.icon || '🌱'} ${escapeHtml(c.name)}${c.variety ? ' (' + escapeHtml(c.variety) + ')' : ''} (${escapeHtml(c.year || '')}年)</option>`;
         }).join('');
     }
   });
@@ -898,7 +935,7 @@ function populateAllSelects() {
       logCrop.innerHTML = '<option value="">（作物なし）</option>' +
         crops.map(c => {
           const guide = CROP_GUIDES[c.guideKey] || {};
-          return `<option value="${c.id}">${guide.icon || '🌱'} ${c.name}${c.variety ? ' (' + c.variety + ')' : ''}</option>`;
+          return `<option value="${escapeAttr(c.id)}">${guide.icon || '🌱'} ${escapeHtml(c.name)}${c.variety ? ' (' + escapeHtml(c.variety) + ')' : ''}</option>`;
         }).join('');
     };
   }
@@ -938,15 +975,18 @@ function importJSON(event) {
     try {
       const imported = JSON.parse(e.target.result);
       const apiKey = state.settings.apiKey; // APIキーは保持
-      state = {
+      state = normalizeState({
         fields: imported.fields || [],
         crops: imported.crops || [],
         workLogs: imported.workLogs || [],
         harvests: imported.harvests || [],
         settings: { ...imported.settings, apiKey }
-      };
+      });
       saveData();
       renderDashboard();
+      renderAll();
+      renderWorkLogs();
+      renderHarvests();
       showToast('✅ データを復元しました');
     } catch (err) {
       showToast('⚠️ ファイルの読み込みに失敗しました');
@@ -1043,13 +1083,135 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function escapeAttr(text) {
+  return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function normalizeText(value, maxLength = 500) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizeIdentifier(value) {
+  const normalized = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  return normalized || generateId();
+}
+
+function normalizeReference(value) {
+  const text = String(value || '').trim();
+  return text ? normalizeIdentifier(text) : '';
+}
+
+function normalizeDate(value) {
+  const text = String(value || '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function normalizeYear(value) {
+  const year = Number.parseInt(value, 10);
+  return Number.isFinite(year) && year >= 2000 && year <= 2100 ? year : '';
+}
+
+function normalizeNumber(value) {
+  const num = Number.parseFloat(value);
+  return Number.isFinite(num) ? num : '';
+}
+
+function normalizePhoto(value) {
+  const text = String(value || '');
+  return /^data:image\/(?:png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(text)
+    ? text
+    : '';
+}
+
+function normalizeSettings(settings = {}) {
+  return {
+    apiKey: normalizeText(settings.apiKey, 300),
+    location: normalizeText(settings.location || '松本市', 100) || '松本市',
+    familyCode: normalizeText(settings.familyCode || FIREBASE_DEFAULTS.familyCode, 100),
+    firebaseApiKey: normalizeText(settings.firebaseApiKey || FIREBASE_DEFAULTS.firebaseApiKey, 120),
+    firebaseProjectId: normalizeText(settings.firebaseProjectId || FIREBASE_DEFAULTS.firebaseProjectId, 100)
+  };
+}
+
+function normalizeState(raw = {}) {
+  const fields = Array.isArray(raw.fields) ? raw.fields : [];
+  const normalizedFields = fields.map(item => ({
+    id: normalizeIdentifier(item.id),
+    name: normalizeText(item.name, 100),
+    type: normalizeText(item.type, 30),
+    area: normalizeText(item.area, 30),
+    createdAt: normalizeText(item.createdAt, 40)
+  }));
+  const fieldIds = new Set(normalizedFields.map(item => item.id));
+
+  const crops = Array.isArray(raw.crops) ? raw.crops : [];
+  const normalizedCrops = crops.map(item => {
+    const id = normalizeIdentifier(item.id);
+    const fieldId = normalizeReference(item.fieldId);
+    return {
+      id,
+      fieldId: fieldIds.has(fieldId) ? fieldId : '',
+      guideKey: normalizeText(item.guideKey, 50),
+      name: normalizeText(item.name, 100),
+      variety: normalizeText(item.variety, 100),
+      sowingDate: normalizeDate(item.sowingDate),
+      plantingDate: normalizeDate(item.plantingDate),
+      status: normalizeText(item.status, 30),
+      year: normalizeYear(item.year),
+      createdAt: normalizeText(item.createdAt, 40)
+    };
+  });
+  const cropIds = new Set(normalizedCrops.map(item => item.id));
+
+  const workLogs = Array.isArray(raw.workLogs) ? raw.workLogs : [];
+  const normalizedWorkLogs = workLogs.map(item => {
+    const fieldId = normalizeReference(item.fieldId);
+    const cropId = normalizeReference(item.cropId);
+    return {
+      id: normalizeIdentifier(item.id),
+      date: normalizeDate(item.date),
+      fieldId: fieldIds.has(fieldId) ? fieldId : '',
+      cropId: cropIds.has(cropId) ? cropId : '',
+      workType: normalizeText(item.workType, 50),
+      weather: normalizeText(item.weather, 20),
+      duration: normalizeText(item.duration, 20),
+      notes: normalizeText(item.notes, 2000),
+      photo: normalizePhoto(item.photo),
+      createdAt: normalizeText(item.createdAt, 40)
+    };
+  });
+
+  const harvests = Array.isArray(raw.harvests) ? raw.harvests : [];
+  const normalizedHarvests = harvests.map(item => {
+    const cropId = normalizeReference(item.cropId);
+    return {
+      id: normalizeIdentifier(item.id),
+      date: normalizeDate(item.date),
+      cropId: cropIds.has(cropId) ? cropId : '',
+      quantity: normalizeNumber(item.quantity),
+      unit: normalizeText(item.unit, 20),
+      notes: normalizeText(item.notes, 1000),
+      year: normalizeYear(item.year),
+      createdAt: normalizeText(item.createdAt, 40)
+    };
+  });
+
+  return {
+    fields: normalizedFields,
+    crops: normalizedCrops,
+    workLogs: normalizedWorkLogs,
+    harvests: normalizedHarvests,
+    settings: normalizeSettings(raw.settings)
+  };
+}
+
 function showPhotoModal(logId) {
   const log = state.workLogs.find(l => l.id === logId);
   if (!log || !log.photo) return;
 
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;';
-  overlay.innerHTML = `<img src="${log.photo}" style="max-width:90%;max-height:90vh;border-radius:12px;">`;
+  overlay.innerHTML = `<img src="${escapeAttr(normalizePhoto(log.photo))}" style="max-width:90%;max-height:90vh;border-radius:12px;">`;
   overlay.onclick = () => overlay.remove();
   document.body.appendChild(overlay);
 }
