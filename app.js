@@ -96,6 +96,67 @@ async function initFirebaseFromSettings() {
   startRealtimeSync(onFirestoreUpdate);
 }
 
+// ===== ログイン状態の管理 =====
+let currentUser = null;
+
+// ログイン監視を開始（クラウド設定がそろっている時だけ）
+function setupAuth() {
+  const s = state.settings;
+  if (!s.firebaseApiKey || !s.firebaseProjectId) {
+    // クラウド設定が無い → ローカル専用。ログインボタンは隠す
+    updateAuthButton(null, false);
+    updateSyncStatus(false);
+    return;
+  }
+  const config = buildFirebaseConfig(s);
+  updateAuthButton(null, true); // 「ログイン」ボタンを表示
+  initAuth(config, onSignedIn, onSignedOut);
+}
+
+// ログインできた時：クラウド同期を開始
+function onSignedIn(user) {
+  currentUser = user;
+  updateAuthButton(user, true);
+  initFirebaseFromSettings();
+}
+
+// ログアウト状態の時：クラウドから切り離してローカル保存に戻す
+function onSignedOut() {
+  currentUser = null;
+  updateAuthButton(null, true);
+  teardownFirestore();
+}
+
+// ヘッダーのログインボタン表示を更新
+function updateAuthButton(user, visible) {
+  const btn = document.getElementById('auth-btn');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  if (user) {
+    const name = user.displayName || user.email || 'ログイン中';
+    btn.textContent = '🔓 ' + name;
+    btn.title = 'タップでログアウト';
+  } else {
+    btn.textContent = '🔑 Googleでログイン';
+    btn.title = '';
+  }
+}
+
+// ログインボタンが押された時
+async function handleAuthClick() {
+  if (currentUser) {
+    if (!confirm('ログアウトしますか？\n（ログアウト中はクラウドのデータは表示されません）')) return;
+    await signOutUser();
+  } else {
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      console.error('ログインエラー:', e);
+      showToast('⚠️ ログインに失敗しました（' + (e.code || e.message) + '）', 5000);
+    }
+  }
+}
+
 // リアルタイム更新コールバック（デバウンス付き）
 let _syncTimeout = null;
 function onFirestoreUpdate(collection, docs) {
@@ -220,8 +281,8 @@ function saveSettings() {
 
   const s = state.settings;
   if (s.familyCode && s.firebaseApiKey && s.firebaseProjectId) {
-    showToast('✅ 設定を保存しました・クラウド同期を開始します');
-    initFirebaseFromSettings();
+    showToast('✅ 設定を保存しました・「ログイン」してクラウド同期を始めてください');
+    setupAuth();
   } else {
     showToast('✅ 設定を保存しました');
     updateSyncStatus(false);
@@ -1013,6 +1074,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Firebase 初期化（非同期・ノンブロッキング）
-  initFirebaseFromSettings();
+  // ログイン監視を開始（ログイン済みなら自動でクラウド同期、未ログインなら待機）
+  setupAuth();
 });

@@ -9,6 +9,7 @@
   <!-- Firebase SDK（家族共有機能・オプション） -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -16,6 +17,7 @@
   <header>
     <h1>🌾 農作業日誌</h1>
     <div class="header-actions">
+      <button id="auth-btn" onclick="handleAuthClick()" class="btn btn-sm" style="display:none">🔑 ログイン</button>
       <span id="sync-indicator" style="font-size:0.75rem;color:#999;padding:4px 8px;background:#f5f5f5;border-radius:12px;">🔴 ローカル保存</span>
       <button onclick="exportJSON()" class="btn btn-sm">💾 バックアップ</button>
       <button onclick="document.getElementById('importFile').click()" class="btn btn-sm">📂 復元</button>

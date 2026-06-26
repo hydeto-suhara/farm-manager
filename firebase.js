@@ -4,6 +4,77 @@
 let _db = null;
 let _familyCode = null;
 let _unsubscribers = [];
+let _app = null;
+
+// Firebase アプリを一度だけ初期化（認証・Firestore で共用）
+function ensureFirebaseApp(config) {
+  if (typeof firebase === 'undefined') {
+    console.warn('Firebase SDK が読み込まれていません');
+    return null;
+  }
+  if (_app) return _app;
+  try {
+    _app = firebase.initializeApp(config);
+  } catch (e) {
+    if (e.code === 'app/duplicate-app') {
+      _app = firebase.app();
+    } else {
+      console.error('Firebase 初期化エラー:', e);
+      return null;
+    }
+  }
+  return _app;
+}
+
+// ===== Google ログイン =====
+// 認証の監視を開始（ログイン状態が変わるたびにコールバックを呼ぶ）
+function initAuth(config, onSignedIn, onSignedOut) {
+  const app = ensureFirebaseApp(config);
+  if (!app) return;
+  const auth = firebase.auth();
+  // リダイレクト方式でログインした場合の戻り値を処理（エラーは無視）
+  auth.getRedirectResult().catch(e => console.warn('リダイレクト結果エラー:', e));
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      onSignedIn(user);
+    } else {
+      onSignedOut();
+    }
+  });
+}
+
+// Google でログイン（PCはポップアップ、スマホ等はリダイレクトに自動切替）
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await firebase.auth().signInWithPopup(provider);
+  } catch (e) {
+    if (
+      e.code === 'auth/popup-blocked' ||
+      e.code === 'auth/cancelled-popup-request' ||
+      e.code === 'auth/popup-closed-by-user' ||
+      e.code === 'auth/operation-not-supported-in-this-environment'
+    ) {
+      await firebase.auth().signInWithRedirect(provider);
+    } else {
+      throw e;
+    }
+  }
+}
+
+// ログアウト
+function signOutUser() {
+  if (typeof firebase === 'undefined' || !firebase.auth) return Promise.resolve();
+  return firebase.auth().signOut();
+}
+
+// Firestore 接続を解除（ログアウト時にクラウドから切り離す）
+function teardownFirestore() {
+  stopRealtimeSync();
+  _db = null;
+  _familyCode = null;
+  updateSyncStatus(false);
+}
 
 // Firestore が使える状態かチェック
 function isFirestoreReady() {
@@ -40,15 +111,10 @@ function initFirestore(config, familyCode) {
     _db = null;
     _familyCode = null;
 
-    let app;
-    try {
-      app = firebase.initializeApp(config);
-    } catch (e) {
-      if (e.code === 'app/duplicate-app') {
-        app = firebase.app();
-      } else {
-        throw e;
-      }
+    const app = ensureFirebaseApp(config);
+    if (!app) {
+      updateSyncStatus(false);
+      return false;
     }
 
     _db = firebase.firestore(app);
